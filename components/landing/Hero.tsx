@@ -33,38 +33,7 @@ export default function Hero() {
   const prefersReduced = useReducedMotion();
 
   return (
-    <section className="min-h-[70vh] flex flex-col items-center justify-center text-center px-4">
-      {/* 작은 떠다니는 아이콘들 */}
-      <div className="relative h-10 w-full max-w-2xl mb-3 pointer-events-none">
-        <motion.span
-          initial={{ y: -6, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{
-            repeat: prefersReduced ? 0 : Infinity,
-            repeatType: "reverse",
-            duration: 2.4,
-          }}
-          className="absolute left-6 text-2xl"
-          aria-hidden
-        >
-          🛡️
-        </motion.span>
-        <motion.span
-          initial={{ y: -6, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{
-            repeat: prefersReduced ? 0 : Infinity,
-            repeatType: "reverse",
-            duration: 2.1,
-            delay: 0.4,
-          }}
-          className="absolute right-10 text-2xl"
-          aria-hidden
-        >
-          🚶‍♀️
-        </motion.span>
-      </div>
-
+    <section className="min-h-[40vh] flex flex-col items-center justify-center text-center px-4">
       {/* 헤드라인 */}
       <motion.h1
         variants={container()}
