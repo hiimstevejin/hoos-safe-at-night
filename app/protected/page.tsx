@@ -1,44 +1,33 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-// We do NOT import useProfile here
+import MapView from "@/components/MapView"; // <- 그냥 임포트 (MapView는 "use client")
 
 export default async function ProtectedPage() {
   const supabase = await createClient();
-
-  // 1. Get the authenticated user
   const {
     data: { user },
-    error: authError,
   } = await supabase.auth.getUser();
+  if (!user) redirect("/auth/login");
 
-  if (authError || !user) {
-    redirect("/auth/login");
-  }
-
-  const { data: profile, error: profileError } = await supabase
+  const { data: profile } = await supabase
     .from("profiles")
     .select("*")
     .eq("user_id", user.id)
     .single();
 
-  // 3. Optional: Handle if the profile doesn't exist yet
-  //    (e.g., if the user just signed up and the sync hasn't happened)
-  if (profileError || !profile) {
-    // You could redirect to a "create-profile" page,
-    // or just use the default email.
-    console.error("Profile not found or sync pending:", profileError?.message);
-  }
-
   return (
-    <div className="flex h-vh w-full items-center justify-center gap-2">
-      <h1>hi</h1>
-      <h1>{profile.uid}</h1>
-      <h1>{profile.name}</h1>
-      <h1>{profile.gender}</h1>
-      <h1>{profile.age}</h1>
-      <h1>{profile.is_verified}</h1>
-      <h1>{profile.is_uva_student}</h1>
-      <h1>{profile.created_at}</h1>
+    <div className="flex w-full flex-col gap-4 p-4">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border p-3">
+        <span className="text-sm">hi</span>
+        <span className="text-sm">{profile?.uid}</span>
+        <span className="text-sm">{profile?.name}</span>
+        <span className="text-sm">{profile?.gender}</span>
+        <span className="text-sm">{profile?.age}</span>
+        <span className="text-sm">{String(profile?.is_verified)}</span>
+        <span className="text-sm">{String(profile?.is_uva_student)}</span>
+        <span className="text-sm">{profile?.created_at}</span>
+      </div>
+      <MapView />
     </div>
   );
 }
