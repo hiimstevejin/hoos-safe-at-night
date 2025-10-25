@@ -25,7 +25,7 @@ export default async function ProtectedPage() {
       <h1>{profile.is_verified}</h1>
       <h1>{profile.is_uva_student}</h1>
       <h1>{profile.created_at}</h1> */}
-      <MapView />
+      <MapView/>
     </div>
   );
 }

@@ -40,7 +40,7 @@ const data = {
     },
     {
       title: "Join walking group",
-      url: "#",
+      url: "/protected/viewpost",
       icon: PlusCircle,
     },
     {
@@ -89,7 +89,7 @@ export function AppSidebar({
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <a href="#">
+              <a href="/protected">
                 <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-12 items-center justify-center rounded-lg">
                   <Image
                     src={Logo}
