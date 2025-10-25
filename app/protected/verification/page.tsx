@@ -54,7 +54,7 @@ export default function VerificationPage() {
     // 3. Call the Server Action in a try/catch block
     try {
       // This calls your server function
-      const result = await verifyUvaStudent(email);
+      const result = await verifyUvaStudent();
 
       // Show a SUCCESS toast
       toast.success(result.message);
