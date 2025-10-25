@@ -109,6 +109,11 @@ export default function MapView({
         setMap(m);
         setStatus("maps loaded");
 
+        const offenderIcon = {
+          url: "/illustrations/image6.png", // Your image path
+          scaledSize: new google.maps.Size(60, 60),
+          anchor: new google.maps.Point(16, 32),
+        };
         // Markers + infowindow
         const iw = new google.maps.InfoWindow();
         MOCK_OFFENDERS.forEach((o) => {
@@ -116,6 +121,7 @@ export default function MapView({
             position: { lat: o.lat, lng: o.lng },
             map: m,
             title: o.name,
+            icon: offenderIcon,
           });
           marker.addListener("click", () => {
             iw.setContent(
@@ -556,7 +562,7 @@ export default function MapView({
 
           renderer.setDirections(chosenRes);
           renderer.setRouteIndex(chosenRouteIdx);
-          
+
           const finalRoute = chosenRes.routes[chosenRouteIdx];
           if (finalRoute && finalRoute.legs.length > 0) {
             const startLoc = finalRoute.legs[0].start_location;
