@@ -11,14 +11,13 @@ export default function NavBar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navLinks = [
-    { name: "Features", href: "#features" },
+    { name: "About", href: "#about" },
     { name: "Safety", href: "#safety" },
-    { name: "Log in", href: "/login" },
+    { name: "Log in", href: "/auth/login" },
   ];
 
   return (
     <motion.header
-      // 페이지 로드 시 위에서 아래로 부드럽게 나타나는 애니메이션
       initial={{ y: -100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
@@ -33,9 +32,6 @@ export default function NavBar() {
             className="text-2xl font-bold text-gray-900"
             title="Home"
           >
-            {/* 텍스트 로고 대신 이미지를 사용하려면:
-              <Image src="/logo.png" alt="Logo" width={120} height={40} />
-            */}
             WalkTogether
           </Link>
 
@@ -52,7 +48,7 @@ export default function NavBar() {
             ))}
             {/* "Get started" 버튼 (Hero 섹션과 동일한 스타일) */}
             <Link
-              href="/signup"
+              href="/auth/login"
               className="bg-pink-500 text-white font-medium px-5 py-2 rounded-full shadow-sm hover:bg-pink-600 transition-colors"
             >
               Get started
