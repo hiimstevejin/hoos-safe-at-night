@@ -9,7 +9,6 @@ import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { Separator } from "@/components/ui/separator";
 import { Metadata } from "next";
 
-
 export const metadata: Metadata = {
   title: "My Dashboard",
   referrer: "no-referrer" as const,
@@ -25,18 +24,43 @@ export default async function MainLayout({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
   // If the user is NOT authenticated, redirect to the public login page.
   if (!user) {
     return redirect(`/login?next=${encodeURIComponent("/auth/login")}`);
   }
 
   // Query the 'profiles' table using the authenticated user's ID.
-  const { data: profile } = await supabase
+  let { data: profile } = await supabase
     .from("profiles")
-    .select("uid")
-    .eq("uid", user.id)
+    .select("user_id")
+    .eq("user_id", user.id)
     .single();
+
+  if (!profile) {
+    // 1. Check if the email ends with the desired domain
+    const isUvaEmail = user.email?.endsWith("@virginia.edu") || false;
+
+    // 2. Prepare the new profile data
+    const newProfileData = {
+      user_id: user.id, // Link to the auth.users table
+      email: user.email,
+      name: user.user_metadata?.name || "New User", // Get name from provider (Google, etc.)
+
+      // Your custom logic:
+      is_uva_student: isUvaEmail,
+      is_verified: isUvaEmail,
+    };
+
+    const { error } = await supabase
+      .from("profiles")
+      .upsert(newProfileData, { onConflict: "user_id" });
+
+    if (error) {
+      console.error("Failed to upsert profile:", error);
+      throw new Error(error.message);
+    }
+    profile = newProfileData;
+  }
 
   const userData = {
     name: user.user_metadata.name || "User",
