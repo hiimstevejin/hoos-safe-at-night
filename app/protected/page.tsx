@@ -31,14 +31,14 @@ export default async function ProtectedPage() {
 
   return (
     <div className="flex h-vh w-full items-center justify-center gap-2">
-      <h1>hi</h1>
+      {/* <h1>hi</h1>
       <h1>{profile.uid}</h1>
       <h1>{profile.name}</h1>
       <h1>{profile.gender}</h1>
       <h1>{profile.age}</h1>
       <h1>{profile.is_verified}</h1>
       <h1>{profile.is_uva_student}</h1>
-      <h1>{profile.created_at}</h1>
+      <h1>{profile.created_at}</h1> */}
     </div>
   );
 }
