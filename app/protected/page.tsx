@@ -1,33 +1,19 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-// We do NOT import useProfile here
+import MapView from "@/components/MapView"; // <- 그냥 임포트 (MapView는 "use client")
 
 export default async function ProtectedPage() {
   const supabase = await createClient();
-
-  // 1. Get the authenticated user
   const {
     data: { user },
-    error: authError,
   } = await supabase.auth.getUser();
+  if (!user) redirect("/auth/login");
 
-  if (authError || !user) {
-    redirect("/auth/login");
-  }
-
-  const { data: profile, error: profileError } = await supabase
+  const { data: profile } = await supabase
     .from("profiles")
     .select("*")
     .eq("user_id", user.id)
     .single();
-
-  // 3. Optional: Handle if the profile doesn't exist yet
-  //    (e.g., if the user just signed up and the sync hasn't happened)
-  if (profileError || !profile) {
-    // You could redirect to a "create-profile" page,
-    // or just use the default email.
-    console.error("Profile not found or sync pending:", profileError?.message);
-  }
 
   return (
     <div className="flex h-vh w-full items-center justify-center gap-2">
