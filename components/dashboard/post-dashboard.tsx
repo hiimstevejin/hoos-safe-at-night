@@ -36,7 +36,7 @@ export default function PostDashboard({ posts }: PostDashboardProps) {
             >
               <h3 className="font-semibold">{post.title}</h3>
               <p className="text-sm text-gray-600">{post.description}</p>
-              {/* <p className="text-sm text-gray-500">{post.name}</p> */}
+              <p className="text-sm text-gray-500">{post.profiles?.name}</p>
             </li>
           ))}
         </ul>

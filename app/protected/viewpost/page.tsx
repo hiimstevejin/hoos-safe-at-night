@@ -54,7 +54,6 @@ const MOCK_CHARLOTTESVILLE_POSTS = [
     created_at: new Date(Date.now() - 14400000).toISOString(), // 4 hours ago
   },
 ];
-
 export default async function ViewPost() {
   const supabase = await createClient();
   const {
@@ -62,21 +61,28 @@ export default async function ViewPost() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  const { data: posts } = await supabase
+  // --- MODIFICATION ---
+  const { data: posts, error } = await supabase
     .from("posts")
     .select(
       `
       *,
-      profiles!uid ( name )
+      profiles!user_id ( name )
     `
     )
     .eq("status", "pending");
+
+  // --- ADD THESE LOGS ---
+  console.log("Supabase query error:", error);
+  console.log("Fetched posts data:", posts);
+  // --- END MODIFICATION ---
+
   const validPosts = posts || [];
+  // console.log(validPosts)
 
   return (
     <div className="flex h-vh w-full items-center justify-center">
-      {/* <div className="h-full w-full bg-red-400"></div> */}
-      <PostDashboard posts={MOCK_CHARLOTTESVILLE_POSTS} />
+      <PostDashboard posts={validPosts} />
     </div>
   );
 }
