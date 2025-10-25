@@ -1,7 +1,10 @@
 // app/page.tsx
+import SafetyTools from "@/components/landing/SafetyTools";
 import Hero from "@/components/landing/Hero";
 import IconStrip from "@/components/landing/IconStrip";
 import Navbar from "@/components/landing/Navbar";
+import WhySection from "@/components/landing/WhySection";
+import Footer from "@/components/landing/Footer";
 
 export default function Landing() {
   return (
@@ -10,7 +13,10 @@ export default function Landing() {
       <IconStrip />
       <div className="mx-auto max-w-6xl">
         <Hero />
+        <WhySection />
+        <SafetyTools />
       </div>
+      <Footer />
     </main>
   );
 }
