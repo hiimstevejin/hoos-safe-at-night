@@ -74,8 +74,8 @@ export default async function ViewPost() {
   const validPosts = posts || [];
 
   return (
-    <div className="flex h-screen w-full items-center justify-center gap-2 bg-gray-50">
-      {/* 2. Render the dashboard, passing it all the posts */}
+    <div className="flex h-vh w-full items-center justify-center">
+      {/* <div className="h-full w-full bg-red-400"></div> */}
       <PostDashboard posts={MOCK_CHARLOTTESVILLE_POSTS} />
     </div>
   );

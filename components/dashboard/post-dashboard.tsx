@@ -9,13 +9,14 @@ type PostDashboardProps = {
 };
 
 export default function PostDashboard({ posts }: PostDashboardProps) {
-  // 1. This state holds the currently selected post
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
 
   return (
-    <div className="flex h-[85vh] w-full max-w-7xl gap-4">
-      {/* 2. LEFT SIDE: The scrollable list of posts */}
-      <div className="flex w-1/3 flex-col rounded-lg border bg-white shadow-sm">
+    <div className="flex h-[85vh] w-full gap-4 p-4">
+      {/* FIX 1: Change w-1/3 to flex-1
+        This tells the container to "grow to fill 1 part"
+      */}
+      <div className="flex flex-1 flex-col rounded-lg border bg-white shadow-sm">
         <h2 className="border-b p-4 text-lg font-semibold">
           Walking Near Me ({posts.length})
         </h2>
@@ -35,16 +36,18 @@ export default function PostDashboard({ posts }: PostDashboardProps) {
             >
               <h3 className="font-semibold">{post.title}</h3>
               <p className="text-sm text-gray-600">{post.description}</p>
-              <p className="text-sm text-gray-500">{post.name}</p>
+              {/* <p className="text-sm text-gray-500">{post.name}</p> */}
             </li>
           ))}
         </ul>
       </div>
 
-      {/* 5. RIGHT SIDE: The map */}
-      <div className="w-2/3">
-        {/* 6. Pass the SINGLE selected post to the map */}
-          <MapView selectedPost={selectedPost ? selectedPost : {}} />
+      {/* FIX 2: Change w-2/3 to flex-[2]
+        This tells the container to "grow to fill 2 parts"
+        This will correctly create the 1/3 and 2/3 split *after* the gap-4 is applied.
+      */}
+      <div className="flex flex-2">
+        <MapView selectedPost={selectedPost} />
       </div>
     </div>
   );

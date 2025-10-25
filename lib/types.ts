@@ -12,3 +12,14 @@ export type Post = {
     name: string;
   } | null;
 };
+
+
+export type Profile = {
+  user_id: string;
+  age: number;
+  gender:string;
+  is_verified: boolean;
+  is_uva_student: boolean;
+  name: string;
+  created_at: string;
+};

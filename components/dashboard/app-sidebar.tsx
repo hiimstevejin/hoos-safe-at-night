@@ -34,7 +34,7 @@ const data = {
   navMain: [
     {
       title: "Create walking group",
-      url: "/dashboard/generate",
+      url: "/protected",
       icon: MapIcon,
       isActive: true,
     },
