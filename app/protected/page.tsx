@@ -16,18 +16,15 @@ export default async function ProtectedPage() {
     .single();
 
   return (
-    <div className="flex w-full flex-col gap-4 p-4">
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border p-3">
-        <span className="text-sm">hi</span>
-        <span className="text-sm">{profile?.uid}</span>
-        <span className="text-sm">{profile?.name}</span>
-        <span className="text-sm">{profile?.gender}</span>
-        <span className="text-sm">{profile?.age}</span>
-        <span className="text-sm">{String(profile?.is_verified)}</span>
-        <span className="text-sm">{String(profile?.is_uva_student)}</span>
-        <span className="text-sm">{profile?.created_at}</span>
-      </div>
-      <MapView />
+    <div className="flex h-vh w-full items-center justify-center gap-2">
+      {/* <h1>hi</h1>
+      <h1>{profile.uid}</h1>
+      <h1>{profile.name}</h1>
+      <h1>{profile.gender}</h1>
+      <h1>{profile.age}</h1>
+      <h1>{profile.is_verified}</h1>
+      <h1>{profile.is_uva_student}</h1>
+      <h1>{profile.created_at}</h1> */}
     </div>
   );
 }
