@@ -2,92 +2,89 @@
 
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getMapsLoader } from "@/lib/googleMaps";
 
-type Offender = { id: string; name: string; lat: number; lng: number };
+// --- Types ---
+export type Offender = { id: string; name: string; lat: number; lng: number };
 
+// --- Mock data: adjust as needed ---
 const MOCK_OFFENDERS: Offender[] = [
   { id: "o1", name: "Offender A", lat: 38.034, lng: -78.505 },
   { id: "o2", name: "Offender B", lat: 38.0305, lng: -78.498 },
-  { id: "o3", name: "Offender C", lat: 38.0332, lng: -78.515 },
+  // o3의 위치를 길에서 더 멀리 (공원 안쪽으로 가정)
+  { id: "o3", name: "Offender C", lat: 38.0338, lng: -78.515 },
 ];
 
 export default function MapView() {
   const mapRef = useRef<HTMLDivElement | null>(null);
+
+  // Google Maps objects/state
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [renderer, setRenderer] =
     useState<google.maps.DirectionsRenderer | null>(null);
+  const dirServiceRef = useRef<google.maps.DirectionsService | null>(null);
 
+  // Inputs (text & place IDs)
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
+  const [originPlaceId, setOriginPlaceId] = useState<string | null>(null);
+  const [destinationPlaceId, setDestinationPlaceId] = useState<string | null>(
+    null
+  );
 
-  // --- ▼ 자동완성 기능 추가 ▼ ---
-
-  // 1. input DOM 요소에 접근하기 위한 ref
+  // Autocomplete
   const originInputRef = useRef<HTMLInputElement | null>(null);
   const destinationInputRef = useRef<HTMLInputElement | null>(null);
-
-  // 2. Autocomplete 인스턴스를 저장할 ref
   const originAutocompleteRef = useRef<google.maps.places.Autocomplete | null>(
     null
   );
   const destAutocompleteRef = useRef<google.maps.places.Autocomplete | null>(
     null
   );
-
-  // 3. 선택된 장소의 Place ID를 저장할 state (라우팅 시 텍스트 주소보다 정확함)
-  const [originPlaceId, setOriginPlaceId] = useState<string | null>(null);
-  const [destinationPlaceId, setDestinationPlaceId] = useState<string | null>(
-    null
-  );
-
-  // 4. Autocomplete 리스너를 저장할 ref (클린업 시 제거용)
   const originListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   const destListenerRef = useRef<google.maps.MapsEventListener | null>(null);
 
-  // --- ▲ 자동완성 기능 추가 ▲ ---
-
+  // Status
   const [status, setStatus] = useState<string>("loading maps...");
   const [error, setError] = useState<string | null>(null);
 
+  // UI: show why we (re)routed and what was risky
+  const [routeInfo, setRouteInfo] = useState<{
+    message: string;
+    details: string[];
+  } | null>(null);
+
+  // Visualize danger radius around offenders that affect the chosen route
+  const dangerCirclesRef = useRef<google.maps.Circle[]>([]);
+
+  // --- Initialize map & widgets ---
   useEffect(() => {
     let cleanup = () => {};
+
     (async () => {
       try {
-        // --- ▼ (수정됨) 맵 컨테이너가 준비되었는지 확인 ---
-        // 이 확인 코드가 없으면, ref가 할당되기 전에 new Map()이 호출되어
-        // "Expected mapDiv of type HTMLElement but was passed null" 에러 발생
-        if (!mapRef.current) {
-          console.warn("Map container ref is not ready yet.");
-          return;
-        }
-        // --- ▲ (수정됨) ---
+        if (!mapRef.current) return;
 
-        console.log(
-          "GMAPS KEY HEAD:",
-          process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.slice(0, 6)
-        );
         if (!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) {
           throw new Error(
-            "Missing NEXT_PUBLIC_GOOGLE_MAPS_API_KEY (.env.local + dev 서버 재시작 필요)"
+            "Missing NEXT_PUBLIC_GOOGLE_MAPS_API_KEY (.env.local 설정 후 dev 서버 재시작 필요)"
           );
         }
 
-        // 1) 라이브러리 로드 (maps와 함께 places 라이브러리 로드)
         const loader = getMapsLoader();
+
+        // Load required libraries
         const { Map } = (await loader.importLibrary(
           "maps"
         )) as google.maps.MapsLibrary;
-        // 5. 'places' 라이브러리 추가 로드
         const { Autocomplete } = (await loader.importLibrary(
           "places"
         )) as google.maps.PlacesLibrary;
-        // 'routes'와 'geometry'는 lib/googleMaps.ts에서 미리 로드 요청함
+        await loader.importLibrary("routes"); // DirectionsService/DirectionsRenderer
 
+        // Create map
         const host = mapRef.current as HTMLDivElement;
-        // ... (중략) ...
-
         const initialCenter = { lat: 38.0336, lng: -78.508 };
         const m = new Map(host, {
           center: initialCenter,
@@ -97,8 +94,7 @@ export default function MapView() {
         setMap(m);
         setStatus("maps loaded");
 
-        // 3) 마커
-        // ... (기존 코드와 동일) ...
+        // Markers + infowindow
         const iw = new google.maps.InfoWindow();
         MOCK_OFFENDERS.forEach((o) => {
           const marker = new google.maps.Marker({
@@ -114,30 +110,23 @@ export default function MapView() {
           });
         });
 
-        // 4) 경로 렌더러
-        // ... (기존 코드와 동일) ...
-        const dr = new google.maps.DirectionsRenderer({
-          map: m,
-          suppressMarkers: false,
-        });
+        // Directions renderer & service
+        const dr = new google.maps.DirectionsRenderer({ map: m });
         setRenderer(dr);
+        dirServiceRef.current = new google.maps.DirectionsService();
 
-        // --- ▼ 자동완성 기능 추가 ▼ ---
-
-        // 6. Autocomplete 설정
+        // Inputs must exist to attach autocomplete
         if (!originInputRef.current || !destinationInputRef.current) {
           console.error("Input refs are not attached yet.");
           return;
         }
 
-        const autocompleteOptions = {
-          // 주소, 이름, 장소ID, 위경도 정보 요청
+        // Autocomplete options
+        const autocompleteOptions: google.maps.places.AutocompleteOptions = {
           fields: ["place_id", "formatted_address", "name", "geometry"],
-          // 검색 범위를 현재 지도 경계로 제한 (추천 정확도 향상)
-          // strictBounds: false, // true로 하면 지도 밖 장소는 아예 검색 안 됨
         };
 
-        // 7. Autocomplete 인스턴스 생성 및 ref에 저장
+        // Create autocomplete
         originAutocompleteRef.current = new Autocomplete(
           originInputRef.current,
           autocompleteOptions
@@ -147,11 +136,11 @@ export default function MapView() {
           autocompleteOptions
         );
 
-        // 8. 지도 경계에 자동완성 결과 바인딩 (지도 이동 시 추천 항목 변경)
+        // Bind to map bounds for better relevance
         originAutocompleteRef.current.bindTo("bounds", m);
         destAutocompleteRef.current.bindTo("bounds", m);
 
-        // 9. 'place_changed' 이벤트 리스너 설정
+        // Listeners: place_changed
         originListenerRef.current = originAutocompleteRef.current.addListener(
           "place_changed",
           () => {
@@ -162,7 +151,6 @@ export default function MapView() {
             }
           }
         );
-
         destListenerRef.current = destAutocompleteRef.current.addListener(
           "place_changed",
           () => {
@@ -174,33 +162,30 @@ export default function MapView() {
           }
         );
 
-        // --- ▲ 자동완성 기능 추가 ▲ ---
-
-        // 5) 처음 렌더 후 리사이즈 보정
-        // ... (기존 코드와 동일) ...
-        google.maps.event.addListenerOnce(m, "idle", () => {
-          const c = m.getCenter();
-          if (c) m.setCenter(c);
-        });
-
+        // Resize handling
         const onResize = () => {
           const c = m.getCenter();
           if (c) m.setCenter(c);
         };
         window.addEventListener("resize", onResize);
 
+        // Ensure proper first paint
+        google.maps.event.addListenerOnce(m, "idle", () => {
+          const c = m.getCenter();
+          if (c) m.setCenter(c);
+        });
+
+        // Cleanup
         cleanup = () => {
           window.removeEventListener("resize", onResize);
-          dr.setMap(null);
           iw.close();
-
-          // 10. 클린업: 리스너 제거 및 바인딩 해제
           if (originListenerRef.current) originListenerRef.current.remove();
           if (destListenerRef.current) destListenerRef.current.remove();
-          if (originAutocompleteRef.current)
-            originAutocompleteRef.current.unbind("bounds");
-          if (destAutocompleteRef.current)
-            destAutocompleteRef.current.unbind("bounds");
+          originAutocompleteRef.current?.unbind("bounds");
+          destAutocompleteRef.current?.unbind("bounds");
+          dr.setMap(null);
+          setRenderer(null);
+          dirServiceRef.current = null;
         };
       } catch (e: any) {
         console.error(e);
@@ -210,82 +195,348 @@ export default function MapView() {
     })();
 
     return () => cleanup();
-  }, []); // 의존성 배열은 비워둠 (마운트 시 1회 실행)
+  }, []);
 
-  const handleRoute = async () => {
-    if (!map || !renderer) return;
+  // --- Route handler (find best safe route) ---
+  const handleRoute = useCallback(async () => {
     try {
-      const loader = getMapsLoader();
-      // 'routes' 라이브러리는 googleMaps.ts에서 이미 로드 요청함
-      await loader.importLibrary("routes");
-      const service = new google.maps.DirectionsService();
+      if (!map || !renderer || !dirServiceRef.current) return;
 
-      // --- ▼ 자동완성 기능 수정 ▼ ---
-      // 11. 라우팅 시 Place ID가 있으면 사용, 없으면 기존 텍스트(주소, 좌표 등) 사용
+      // Clear previous danger circles
+      dangerCirclesRef.current.forEach((c) => c.setMap(null));
+      dangerCirclesRef.current = [];
+
+      const loader = getMapsLoader();
+      await loader.importLibrary("geometry");
+
       const originRequest = originPlaceId ? { placeId: originPlaceId } : origin;
       const destinationRequest = destinationPlaceId
         ? { placeId: destinationPlaceId }
         : destination;
-      // --- ▲ 자동완성 기능 수정 ▲ ---
 
-      service.route(
+      if (!originRequest || !destinationRequest) {
+        alert("시작점과 도착점을 입력해주세요.");
+        return;
+      }
+
+      // Helpers
+      const fmt = (m: number) =>
+        m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`;
+      const nearestVertexDistance = (
+        offender: google.maps.LatLng,
+        path: google.maps.LatLng[]
+      ) => {
+        let min = Number.POSITIVE_INFINITY;
+        for (let i = 0; i < path.length; i++) {
+          const d = google.maps.geometry.spherical.computeDistanceBetween(
+            offender,
+            path[i]
+          );
+          if (d < min) min = d;
+        }
+        return min;
+      };
+      const findNearestSegmentIndex = (
+        offender: google.maps.LatLng,
+        path: google.maps.LatLng[]
+      ) => {
+        // Heuristic: pick the vertex with min distance, use its previous segment
+        let minIdx = 1;
+        let best = Number.POSITIVE_INFINITY;
+        for (let i = 0; i < path.length; i++) {
+          const d = google.maps.geometry.spherical.computeDistanceBetween(
+            offender,
+            path[i]
+          );
+          if (d < best) {
+            best = d;
+            minIdx = Math.max(1, i);
+          }
+        }
+        return Math.min(path.length - 1, Math.max(1, minIdx));
+      };
+
+      type RouteRisk = {
+        index: number;
+        hits: { offenderId: string; name: string; nearestMeters: number }[];
+        minMetersToAnyOffender: number;
+        lengthMeters: number;
+      };
+
+      const DANGER_ZONE_METERS = 40;
+      const METERS_PER_DEG_LAT = 111_320;
+      const tolDeg = DANGER_ZONE_METERS / METERS_PER_DEG_LAT;
+
+      const offenders = MOCK_OFFENDERS.map((o) => ({
+        ...o,
+        pos: new google.maps.LatLng(o.lat, o.lng),
+      }));
+
+      const analyzeRisks = (
+        routes: google.maps.DirectionsRoute[]
+      ): RouteRisk[] =>
+        routes.map((r, idx) => {
+          const path = (r as any).overview_path as google.maps.LatLng[];
+          const hits: RouteRisk["hits"] = [];
+          if (path && path.length) {
+            const polyline = new google.maps.Polyline({ path, geodesic: true });
+            for (const off of offenders) {
+              const near = google.maps.geometry.poly.isLocationOnEdge(
+                off.pos,
+                polyline,
+                tolDeg
+              );
+              if (near) {
+                hits.push({
+                  offenderId: off.id,
+                  name: off.name,
+                  nearestMeters: nearestVertexDistance(off.pos, path),
+                });
+              }
+            }
+          }
+          const leg = r.legs?.[0];
+          const lengthMeters = leg?.distance?.value ?? Number.POSITIVE_INFINITY;
+          const minMetersToAnyOffender = hits.length
+            ? Math.min(...hits.map((h) => h.nearestMeters))
+            : Number.POSITIVE_INFINITY;
+          return { index: idx, hits, minMetersToAnyOffender, lengthMeters };
+        });
+
+      const pickBest = (risks: RouteRisk[]): number => {
+        // Choose safest (fewest hits, then farthest from offenders, then shortest)
+        risks.sort((a, b) =>
+          a.hits.length !== b.hits.length
+            ? a.hits.length - b.hits.length
+            : a.minMetersToAnyOffender !== b.minMetersToAnyOffender
+            ? b.minMetersToAnyOffender - a.minMetersToAnyOffender
+            : a.lengthMeters - b.lengthMeters
+        );
+        return risks[0].index;
+      };
+
+      const drawDangerCirclesForRoute = (
+        route: google.maps.DirectionsRoute
+      ) => {
+        const path = (route as any).overview_path as google.maps.LatLng[];
+        const polyline = new google.maps.Polyline({ path, geodesic: true });
+        offenders.forEach((off) => {
+          const hit = google.maps.geometry.poly.isLocationOnEdge(
+            off.pos,
+            polyline,
+            tolDeg
+          );
+          if (hit) {
+            const circle = new google.maps.Circle({
+              map: map,
+              center: off.pos,
+              radius: DANGER_ZONE_METERS,
+              strokeOpacity: 0.6,
+              fillOpacity: 0.08,
+            });
+            dangerCirclesRef.current.push(circle);
+          }
+        });
+      };
+
+      // Create initial alternatives
+      dirServiceRef.current.route(
         {
-          origin: originRequest, // 수정됨
-          destination: destinationRequest, // 수정됨
+          origin: originRequest as any,
+          destination: destinationRequest as any,
           travelMode: google.maps.TravelMode.WALKING,
           provideRouteAlternatives: true,
         },
-        (res, status) => {
-          if (status === "OK" && res) {
-            // ... (기존 코드와 동일) ...
-            renderer.setDirections(res);
-            const routes = res.routes ?? [];
-            if (routes.length > 0) {
-              let bestIndex = 0;
-              let best = Number.POSITIVE_INFINITY;
-              routes.forEach((r, i) => {
-                const leg = r.legs?.[0];
-                const meters = leg?.distance?.value ?? Number.POSITIVE_INFINITY;
-                if (meters < best) {
-                  best = meters;
-                  bestIndex = i;
-                }
-              });
-              renderer.setRouteIndex(bestIndex);
-            }
-          } else {
-            console.error("Directions failed:", status);
-            alert("경로를 찾지 못했습니다. 입력을 다시 확인해주세요.");
+        async (res, status) => {
+          if (status !== google.maps.DirectionsStatus.OK) {
+            alert("cannot find the path");
+            return;
           }
+
+          let risks = analyzeRisks(res.routes);
+          const safe = risks.filter((r) => r.hits.length === 0);
+
+          // If we already have a safe path, pick shortest safe
+          if (safe.length > 0) {
+            safe.sort((a, b) => a.lengthMeters - b.lengthMeters);
+            renderer.setDirections(res);
+            renderer.setRouteIndex(safe[0].index);
+            setRouteInfo({
+              message: `choose a safe path (Route #${safe[0].index + 1}).`,
+              details: [`estimated distance: ${fmt(safe[0].lengthMeters)}`],
+            });
+            return;
+          }
+
+          // Otherwise, try to *force* a detour using programmatic waypoints
+          // 1) find the least-bad current route and offenders causing hits
+          const chosenIdx = pickBest(risks);
+          const chosenRoute = res.routes[chosenIdx];
+          const chosenPath = (chosenRoute as any)
+            .overview_path as google.maps.LatLng[];
+
+          const offendersAffecting = offenders.filter((off) => {
+            const polyline = new google.maps.Polyline({
+              path: chosenPath,
+              geodesic: true,
+            });
+            return google.maps.geometry.poly.isLocationOnEdge(
+              off.pos,
+              polyline,
+              tolDeg
+            );
+          });
+
+          // 2) generate waypoint candidates around offenders to steer away
+          const WAYPOINT_BEARINGS = [0, 60, 120, 180, 240, 300]; // 6 candidates around each offender
+          const R_FACTORS = [2.0, 3.0]; // multiples of DANGER_ZONE_METERS
+
+          const candidateWaypoints: google.maps.LatLng[] = [];
+          for (const off of offendersAffecting) {
+            const segIdx = findNearestSegmentIndex(off.pos, chosenPath);
+            const a = chosenPath[segIdx - 1];
+            const b = chosenPath[segIdx];
+            const bearingAlong = google.maps.geometry.spherical.computeHeading(
+              a,
+              b
+            );
+            // Prefer lateral bearings (left/right of path) first
+            const preferred = [bearingAlong + 90, bearingAlong - 90];
+            const bearings = [...preferred, ...WAYPOINT_BEARINGS];
+
+            for (const rf of R_FACTORS) {
+              for (const br of bearings) {
+                const wp = google.maps.geometry.spherical.computeOffset(
+                  off.pos,
+                  DANGER_ZONE_METERS * rf,
+                  br
+                );
+                candidateWaypoints.push(wp);
+                if (candidateWaypoints.length > 8) break; // cap
+              }
+              if (candidateWaypoints.length > 8) break;
+            }
+          }
+
+          // 3) query routes with each candidate waypoint (capped to keep quota safe)
+          const detourResults: {
+            res: google.maps.DirectionsResult;
+            idx: number;
+          }[] = [];
+          for (let i = 0; i < Math.min(candidateWaypoints.length, 8); i++) {
+            const wp = candidateWaypoints[i];
+            // eslint-disable-next-line no-await-in-loop
+            const r = await new Promise<google.maps.DirectionsResult | null>(
+              (resolve) => {
+                dirServiceRef.current!.route(
+                  {
+                    origin: originRequest as any,
+                    destination: destinationRequest as any,
+                    travelMode: google.maps.TravelMode.WALKING,
+                    provideRouteAlternatives: false,
+                    waypoints: [{ location: wp, stopover: false }],
+                  },
+                  (r2, s2) =>
+                    resolve(
+                      s2 === google.maps.DirectionsStatus.OK && r2 ? r2 : null
+                    )
+                );
+              }
+            );
+            if (r) detourResults.push({ res: r, idx: 0 });
+          }
+
+          // 4) re-analyze detour candidates and pick best safe (or least risky)
+          let chosenRes = res;
+          let chosenRouteIdx = chosenIdx;
+          let infoMsg = `No completely safe routes found. Showing the lowest-risk option (Route #${
+            chosenIdx + 1
+          }).`;
+          let infoDetails: string[] = [];
+
+          // evaluate original + detours
+          const allCandidates: {
+            res: google.maps.DirectionsResult;
+            idx: number;
+          }[] = [{ res, idx: chosenIdx }, ...detourResults];
+
+          // try to find safe among all
+          let safePick: {
+            res: google.maps.DirectionsResult;
+            idx: number;
+            length: number;
+          } | null = null;
+          for (const cand of allCandidates) {
+            const candRisks = analyzeRisks(cand.res.routes);
+            const safeOnly = candRisks.filter((rk) => rk.hits.length === 0);
+            if (safeOnly.length) {
+              safeOnly.sort((a, b) => a.lengthMeters - b.lengthMeters);
+              safePick = {
+                res: cand.res,
+                idx: safeOnly[0].index,
+                length: safeOnly[0].lengthMeters,
+              };
+              break; // first safe win (already sorted by query order favoring lateral detours)
+            }
+          }
+
+          if (safePick) {
+            chosenRes = safePick.res;
+            chosenRouteIdx = safePick.idx;
+            infoMsg = `더 멀지만 한 경로를 선택했어요 (Route #${
+              chosenRouteIdx + 1
+            }).`;
+            infoDetails = [
+              `예상 거리: ${fmt(safePick.length)}`,
+              `위험 반경 ${DANGER_ZONE_METERS}m 회피`,
+            ];
+          } else {
+            const risksAgain = analyzeRisks(chosenRes.routes);
+            const leastBadIdx = pickBest(risksAgain);
+            chosenRouteIdx = leastBadIdx;
+            const chosen = risksAgain.find((r) => r.index === leastBadIdx)!;
+            const closest = chosen.hits.sort(
+              (x, y) => x.nearestMeters - y.nearestMeters
+            )[0];
+            infoDetails = [
+              `해당 경로와 가장 가까운 대상: ${closest.name} (약 ${fmt(
+                closest.nearestMeters
+              )}).`,
+              `예상 거리: ${fmt(chosen.lengthMeters)}`,
+            ];
+          }
+
+          renderer.setDirections(chosenRes);
+          renderer.setRouteIndex(chosenRouteIdx);
+          drawDangerCirclesForRoute(chosenRes.routes[chosenRouteIdx]);
+          setRouteInfo({ message: infoMsg, details: infoDetails });
         }
       );
     } catch (e) {
       console.error(e);
-      alert("Directions 초기화에 실패했습니다.");
+      alert("경로 계산 중 오류가 발생했습니다.");
     }
-  };
+  }, [map, renderer, origin, destination, originPlaceId, destinationPlaceId]);
 
   return (
     <div className="flex w-full flex-col gap-3">
       {/* 입력 */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border p-3">
         <input
-          ref={originInputRef} // 12. ref 연결
+          ref={originInputRef}
           className="flex-1 rounded-lg border px-3 py-2"
           placeholder="Start (e.g., 'Rice Hall' or '38.033,-78.508')"
           value={origin}
-          // 13. 사용자가 직접 타이핑 시 Place ID 초기화
           onChange={(e) => {
             setOrigin(e.target.value);
             setOriginPlaceId(null);
           }}
         />
         <input
-          ref={destinationInputRef} // 12. ref 연결
+          ref={destinationInputRef}
           className="flex-1 rounded-lg border px-3 py-2"
           placeholder="End (e.g., 'Ohill' or '38.030,-78.5')"
           value={destination}
-          // 13. 사용자가 직접 타이핑 시 Place ID 초기화
           onChange={(e) => {
             setDestination(e.target.value);
             setDestinationPlaceId(null);
@@ -303,6 +554,18 @@ export default function MapView() {
       <div className="text-xs text-gray-500">
         status: {status} {error ? `— ${error}` : ""}
       </div>
+
+      {/* 경로 안내/위험 설명 */}
+      {routeInfo && (
+        <div className="rounded-lg border bg-amber-50 p-3 text-sm text-amber-900">
+          <div className="font-medium">{routeInfo.message}</div>
+          <ul className="ml-5 list-disc">
+            {routeInfo.details.map((d, i) => (
+              <li key={i}>{d}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* 지도 */}
       <div
